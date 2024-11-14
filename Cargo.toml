@@ -1,0 +1,9 @@
+[package]
+name = "my_img_test"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+iced = { version = "0.13.1", features = ["image", "tokio", "advanced"]}
+tokio = { version = "1.41.1", features = ["fs", "io-util"]}
+
