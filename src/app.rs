@@ -1,21 +1,21 @@
-use iced::{Element, Task};
 use iced::widget::image::Handle;
 use iced::widget::{button, container, image, row};
+use iced::{Element, Task};
 
-use tokio::fs::File;
-use tokio::io::AsyncReadExt;
+use dicom::object::open_file;
+use dicom::pixeldata::image::GenericImageView;
+use dicom::pixeldata::PixelDecoder;
 
 #[derive(Debug, Clone)]
 pub enum Message {
     Load,
-    Loaded(Vec<u8>),
+    Loaded((u32, u32, Vec<u8>)),
 }
 
 pub struct App {
     image_handle: Option<Handle>,
     show_container: bool,
 }
-
 
 impl App {
     pub(crate) fn new() -> (Self, Task<Message>) {
@@ -24,8 +24,7 @@ impl App {
                 image_handle: None,
                 show_container: false,
             },
-
-            Task::none()
+            Task::none(),
         )
     }
 
@@ -39,16 +38,25 @@ impl App {
                 self.show_container = true;
                 return Task::perform(
                     async {
-                        let mut file = File::open("/Users/jesse/Code/rust_proj/test_img/ferris.png").await.unwrap();
-                        let mut buffer = Vec::new();
-                        file.read_to_end(&mut buffer).await.unwrap();
-                        buffer
+                        let obj =
+                            open_file("/Users/jessekruse/Downloads/2_skull_ct/DICOM/I0").unwrap();
 
+                        let decoded_pixel_data = obj.decode_pixel_data().unwrap();
+                        let dyn_img = decoded_pixel_data.to_dynamic_image(0).unwrap();
+
+                        let (width, hight) = dyn_img.dimensions() as (u32, u32);
+
+                        let rgba_img = dyn_img.to_rgba8();
+                        let rgba_vec = rgba_img.to_vec();
+
+                        (width, hight, rgba_vec)
                     },
                     Message::Loaded,
                 );
             }
-            Message::Loaded(data) => self.image_handle = Some(Handle::from_bytes(data)),
+            Message::Loaded((x, y, rgba_vec)) => {
+                self.image_handle = Some(Handle::from_rgba(x, y, rgba_vec))
+            }
         }
 
         Task::none()
@@ -66,9 +74,7 @@ impl App {
                 container("")
             }
         )
-            .padding(20)
-            .into()
+        .padding(20)
+        .into()
     }
-
 }
-
