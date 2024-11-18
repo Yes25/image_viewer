@@ -8,3 +8,8 @@ iced = { version = "0.13.1", features = ["image", "tokio", "advanced"]}
 tokio = { version = "1.41.1", features = ["fs", "io-util"]}
 dicom = { version = "0.8.0", features = ["image"] }
 rfd = "0.15.1"
+
+[package.metadata.bundle]
+name = "image viewer"
+identifier = "com.image_viewer"
+icon = []
