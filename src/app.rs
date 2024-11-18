@@ -6,6 +6,8 @@ use dicom::object::open_file;
 use dicom::pixeldata::image::GenericImageView;
 use dicom::pixeldata::PixelDecoder;
 
+use rfd::FileDialog;
+
 #[derive(Debug, Clone)]
 pub enum Message {
     Load,
@@ -29,52 +31,58 @@ impl App {
     }
 
     pub(crate) fn theme(&self) -> iced::Theme {
-        iced::Theme::TokyoNightStorm
+        iced::Theme::CatppuccinMocha
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::Load => {
                 self.show_container = true;
-                return Task::perform(
-                    async {
-                        let obj =
-                            open_file("/Users/jessekruse/Downloads/2_skull_ct/DICOM/I0").unwrap();
+                let files = FileDialog::new()
+                    .add_filter("text", &["", ".dcm", ".aim"])
+                    .pick_file();
 
-                        let decoded_pixel_data = obj.decode_pixel_data().unwrap();
-                        let dyn_img = decoded_pixel_data.to_dynamic_image(0).unwrap();
+                if let Some(path_buf) = files {
+                    return Task::perform(
+                        async {
+                            let obj = open_file(path_buf).unwrap();
 
-                        let (width, hight) = dyn_img.dimensions() as (u32, u32);
+                            let decoded_pixel_data = obj.decode_pixel_data().unwrap();
+                            let dyn_img = decoded_pixel_data.to_dynamic_image(0).unwrap();
 
-                        let rgba_img = dyn_img.to_rgba8();
-                        let rgba_vec = rgba_img.to_vec();
+                            let (width, hight) = dyn_img.dimensions() as (u32, u32);
 
-                        (width, hight, rgba_vec)
-                    },
-                    Message::Loaded,
-                );
+                            let rgba_img = dyn_img.to_rgba8();
+                            let rgba_vec = rgba_img.to_vec();
+
+                            (width, hight, rgba_vec)
+                        },
+                        Message::Loaded,
+                    );
+                }
             }
             Message::Loaded((x, y, rgba_vec)) => {
                 self.image_handle = Some(Handle::from_rgba(x, y, rgba_vec))
             }
         }
-
         Task::none()
     }
 
     pub fn view(&self) -> Element<Message> {
-        row!(
-            button("Load").on_press(Message::Load),
-            if self.show_container {
-                match &self.image_handle {
-                    Some(h) => container(image(h.clone())),
-                    None => container("Loading..."),
+        container(
+            row!(
+                button("Load").on_press(Message::Load),
+                if self.show_container {
+                    match &self.image_handle {
+                        Some(h) => container(image(h.clone())),
+                        None => container("Loading..."),
+                    }
+                } else {
+                    container("")
                 }
-            } else {
-                container("")
-            }
+            )
+            .padding(20),
         )
-        .padding(20)
         .into()
     }
 }

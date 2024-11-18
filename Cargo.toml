@@ -7,3 +7,4 @@ edition = "2021"
 iced = { version = "0.13.1", features = ["image", "tokio", "advanced"]}
 tokio = { version = "1.41.1", features = ["fs", "io-util"]}
 dicom = { version = "0.8.0", features = ["image"] }
+rfd = "0.15.1"
