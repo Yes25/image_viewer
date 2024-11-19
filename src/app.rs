@@ -9,19 +9,19 @@ use std::env;
 use std::path::PathBuf;
 
 use iced::Fill;
-use crate::app::file_loader::load_image;
+use crate::app::file_loader::{load_image, load_images, ImageSlice};
 
 #[derive(Debug, Clone)]
 pub enum Message {
     Load,
-    Loaded((Handle, String)),
+    Loaded(Vec<ImageSlice>),
 }
 
 pub struct App {
     image_handle: Option<Handle>,
     show_container: bool,
     image_name: String,
-    slice_buffer: Vec<Handle>
+    slice_buffer: Vec<ImageSlice>
 }
 
 impl App {
@@ -61,21 +61,23 @@ impl App {
                 self.show_container = true;
                 let files = FileDialog::new()
                     .add_filter("text", &["", ".dcm", ".aim"])
-                    .pick_file();
+                    .pick_folder();
+
 
                 if let Some(path_buf) = files {
                     let image_name = path_buf.file_name().unwrap().to_str().unwrap().to_owned();
                     return Task::perform(
                         async {
-                            (load_image(path_buf), image_name)
+                            load_images(path_buf)
                         },
                         Message::Loaded,
                     );
                 }
             }
-            Message::Loaded((image_handle, image_name)) => {
-                self.image_handle = Some(image_handle);
-                self.image_name = image_name;
+            Message::Loaded(slice_buffer) => {
+                self.slice_buffer = slice_buffer;
+                self.image_handle = Some(self.slice_buffer[0].clone().get_handle());
+                self.image_name = self.slice_buffer[0].file_name.clone();
             }
         }
         Task::none()
