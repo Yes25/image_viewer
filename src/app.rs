@@ -1,19 +1,19 @@
+mod file_loader;
+
 use iced::widget::image::Handle;
 use iced::widget::{button, container, image, row};
 use iced::{Element, Task};
 
-use dicom::object::open_file;
-use dicom::pixeldata::image::GenericImageView;
-use dicom::pixeldata::PixelDecoder;
-
 use rfd::FileDialog;
 use std::env;
-use std::path::Path;
+use std::path::PathBuf;
+
+use crate::app::file_loader::load_image;
 
 #[derive(Debug, Clone)]
 pub enum Message {
     Load,
-    Loaded((u32, u32, Vec<u8>)),
+    Loaded(Handle),
 }
 
 pub struct App {
@@ -23,40 +23,26 @@ pub struct App {
 
 impl App {
     pub(crate) fn new() -> (Self, Task<Message>) {
+        let mut image_handle = None;
+        let mut show_container = false;
 
         if env::args().len() > 1 {
             let args: Vec<String> = env::args().collect();
             let path_str = args.get(1).unwrap();
-            println!("Loading image {}", path_str);
-            let path = Path::new(path_str);
 
-            let obj = open_file(path).unwrap();
+            let path = PathBuf::from(path_str);
 
-            let decoded_pixel_data = obj.decode_pixel_data().unwrap();
-            let dyn_img = decoded_pixel_data.to_dynamic_image(0).unwrap();
+            image_handle = Some(load_image(path));
+            show_container = true;
 
-            let (width, hight) = dyn_img.dimensions() as (u32, u32);
-
-            let rgba_img = dyn_img.to_rgba8();
-            let rgba_vec = rgba_img.to_vec();
-
-            let img_handle = Handle::from_rgba(width, hight, rgba_vec);
-            (
-                Self {
-                    image_handle: Some(img_handle),
-                    show_container: true,
-                },
-                Task::none()
-            )
-        } else {
-            (
-                Self {
-                    image_handle: None,
-                    show_container: false,
-                },
-                Task::none(),
-            )
         }
+        (
+            Self {
+                image_handle,
+                show_container,
+            },
+            Task::none(),
+        )
     }
 
     pub(crate) fn theme(&self) -> iced::Theme {
@@ -74,24 +60,14 @@ impl App {
                 if let Some(path_buf) = files {
                     return Task::perform(
                         async {
-                            let obj = open_file(path_buf).unwrap();
-
-                            let decoded_pixel_data = obj.decode_pixel_data().unwrap();
-                            let dyn_img = decoded_pixel_data.to_dynamic_image(0).unwrap();
-
-                            let (width, hight) = dyn_img.dimensions() as (u32, u32);
-
-                            let rgba_img = dyn_img.to_rgba8();
-                            let rgba_vec = rgba_img.to_vec();
-
-                            (width, hight, rgba_vec)
+                            load_image(path_buf)
                         },
                         Message::Loaded,
                     );
                 }
             }
-            Message::Loaded((x, y, rgba_vec)) => {
-                self.image_handle = Some(Handle::from_rgba(x, y, rgba_vec))
+            Message::Loaded(image_handle) => {
+                self.image_handle = Some(image_handle)
             }
         }
         Task::none()
