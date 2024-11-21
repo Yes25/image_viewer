@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::PathBuf;
+use dicom::core::Tag;
 use dicom::object::open_file;
 use dicom::pixeldata::image::GenericImageView;
 use dicom::pixeldata::PixelDecoder;
@@ -37,26 +38,30 @@ pub fn load_images(path_buf: PathBuf) -> Vec<ImageSlice> {
     }
 
     for path in paths {
-        dbg!(&path);
+
         let file_name = path.to_str().unwrap().to_owned();
         let obj = open_file(path).unwrap();
+
+        let location  = obj.element(Tag(0x0020,0x1041)).unwrap().to_float32().unwrap();
 
         let decoded_pixel_data = obj.decode_pixel_data().unwrap();
         let dyn_img = decoded_pixel_data.to_dynamic_image(0).unwrap();
 
-        let (width, height) = dyn_img.dimensions() as (u32, u32);
+        let (width, height) = dyn_img.dimensions();
 
         let rgba_img = dyn_img.to_rgba8();
         let rgba_vec = rgba_img.to_vec();
-
-
+        
         image_vec.push(ImageSlice {
             file_name,
             width,
             height,
-            rgba_vec
+            rgba_vec,
+            location,
         });
     };
+
+    image_vec.sort_by(|a, b| b.location.total_cmp(&a.location));
     image_vec
 }
 
@@ -66,6 +71,7 @@ pub struct ImageSlice {
     width: u32,
     height: u32,
     rgba_vec: Vec<u8>,
+    location: f32,
 }
 
 impl ImageSlice {
