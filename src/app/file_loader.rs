@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use dicom::core::Tag;
@@ -5,6 +6,31 @@ use dicom::object::open_file;
 use dicom::pixeldata::image::GenericImageView;
 use dicom::pixeldata::PixelDecoder;
 use iced::widget::image::Handle;
+
+pub fn open_folder(path_buf: PathBuf) -> (Vec<String>, HashMap<String, PathBuf>) {
+
+    let mut path_map:HashMap<String, PathBuf> = HashMap::new();
+    let mut series_names:Vec<String> = Vec::new();
+
+    if path_buf.is_dir() {
+        for entry in fs::read_dir(path_buf).unwrap() {
+            match entry{
+                Ok(path) => {
+                    let path = path.path();
+                    if path.is_dir() {
+                        let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
+                        path_map.insert(file_name.clone(), path);
+                        series_names.push(file_name);
+                    } else {
+                        println!("{} is not a valid folder!", path.display());
+                    }
+                }
+                Err(_) => {}
+            }
+        }
+    }
+    (series_names, path_map)
+}
 pub fn load_image(path_buf: PathBuf) -> Handle {
 
     let obj = open_file(path_buf).unwrap();
@@ -12,7 +38,7 @@ pub fn load_image(path_buf: PathBuf) -> Handle {
     let decoded_pixel_data = obj.decode_pixel_data().unwrap();
     let dyn_img = decoded_pixel_data.to_dynamic_image(0).unwrap();
 
-    let (width, height) = dyn_img.dimensions() as (u32, u32);
+    let (width, height) = dyn_img.dimensions();
 
     let rgba_img = dyn_img.to_rgba8();
     let rgba_vec = rgba_img.to_vec();

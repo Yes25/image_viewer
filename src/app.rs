@@ -1,5 +1,6 @@
 mod file_loader;
 
+use std::collections::HashMap;
 use iced::widget::image::Handle;
 use iced::widget::{button, column, container, image, row, slider, text, vertical_space};
 use iced::{Element, Font, Length, Padding, Task};
@@ -11,12 +12,13 @@ use std::path::PathBuf;
 use iced::Fill;
 use iced_aw::SelectionList;
 use iced_aw::style::selection_list::primary;
-use crate::app::file_loader::{load_image, load_images, ImageSlice};
+use crate::app::file_loader::{load_image, load_images, open_folder, ImageSlice};
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    Load,
-    Loaded(Vec<ImageSlice>),
+    OpenFolder,
+    OpenedFolder( (Vec<String>, HashMap<String, PathBuf>) ),
+    LoadedImage(Vec<ImageSlice>),
     SliderChanged(u8),
     FileSelected(usize, String),
 }
@@ -29,6 +31,7 @@ pub struct App {
     file_names: Vec<String>,
     current_slice: u8,
     selected_idx: Option<usize>,
+    path_map: HashMap<String, PathBuf>,
 }
 
 impl App {
@@ -37,6 +40,7 @@ impl App {
         let mut show_container = false;
         let mut image_name = String::from("No image loaded...");
 
+        // For opening files via "open with" on Linux and Windows
         if env::args().len() > 1 {
             let args: Vec<String> = env::args().collect();
             let path_str = args.get(1).unwrap();
@@ -52,11 +56,11 @@ impl App {
                 image_handle,
                 show_container,
                 image_name,
-                // file_names: Vec::new(),
-                file_names: vec![String::from("file_1"), String::from("file_2"), String::from("file_3"), String::from("file_4")],
+                file_names: Vec::new(),
                 slice_buffer: Vec::new(),
                 current_slice: 0,
                 selected_idx: None,
+                path_map: HashMap::new(),
             },
             Task::none(),
         )
@@ -68,7 +72,7 @@ impl App {
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::Load => {
+            Message::OpenFolder => {
                 self.show_container = true;
                 let files = FileDialog::new()
                     .add_filter("text", &["", ".dcm", ".aim"])
@@ -78,13 +82,25 @@ impl App {
                 if let Some(path_buf) = files {
                     return Task::perform(
                         async {
-                            load_images(path_buf)
+                            //load_images(path_buf)
+                            open_folder(path_buf)
                         },
-                        Message::Loaded,
+                        Message::OpenedFolder,
                     );
                 }
             }
-            Message::Loaded(slice_buffer) => {
+            Message::OpenedFolder( (series_names, path_map) ) => {
+                self.file_names = series_names;
+                self.path_map = path_map;
+                let path_buf = self.path_map.get(&self.file_names[0]).unwrap().clone();
+                return Task::perform(
+                    async {
+                        load_images(path_buf)
+                    },
+                    Message::LoadedImage,
+                );
+            }
+            Message::LoadedImage( slice_buffer ) => {
                 self.slice_buffer = slice_buffer;
                 self.image_handle = Some(self.slice_buffer[0].clone().get_handle());
                 self.image_name = self.slice_buffer[0].file_name.clone();
@@ -95,8 +111,15 @@ impl App {
                 self.image_name = self.slice_buffer[index].file_name.clone();
                 self.current_slice = current_slice;
             }
-            Message::FileSelected(index, file_name) => {
-                println!("Idx: {index} ::: file_name: {file_name}");
+            Message::FileSelected(_index, file_name) => {
+                let path_buf = self.path_map.get(&file_name).unwrap().clone();
+                return Task::perform(
+                    async {
+                        load_images(path_buf)
+                    },
+                    Message::LoadedImage,
+                );
+
             }
         }
         Task::none()
@@ -161,7 +184,7 @@ fn menu_view(state: &App) -> Element<Message> {
 
     container(
         column![
-            button("Load").on_press(Message::Load),
+            button("Load").on_press(Message::OpenFolder),
             container(selection_list).padding(15),
             ]
     )
