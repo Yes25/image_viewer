@@ -3,13 +3,15 @@ mod file_loader;
 use std::collections::HashMap;
 use iced::widget::image::Handle;
 use iced::widget::{button, column, container, image, row, slider, text, vertical_space};
-use iced::{Element, Font, Length, Padding, Task};
+use iced::{ContentFit, Element, Font, Length, Padding, Task};
 
 use rfd::FileDialog;
 use std::env;
 
 use std::path::PathBuf;
 use iced::Fill;
+use iced::keyboard::{Key};
+use iced::keyboard::key::Named::{ArrowDown, ArrowUp};
 use iced_aw::SelectionList;
 use iced_aw::style::selection_list::primary;
 use crate::app::file_loader::{load_image, load_images, open_folder, ImageSlice};
@@ -21,6 +23,7 @@ pub enum Message {
     LoadedImage(Vec<ImageSlice>),
     SliderChanged(u8),
     FileSelected(usize, String),
+    KeyPressed(Key),
 }
 
 pub struct App {
@@ -47,7 +50,8 @@ impl App {
 
             let path = PathBuf::from(path_str);
 
-            image_name = path.file_name().unwrap().to_str().unwrap().to_owned();
+            image_name = path.file_name().unwrap().to_str().unwrap().to_owned().split("/").last().unwrap().to_string();
+
             image_handle = Some(load_image(path));
             show_container = true;
         }
@@ -82,7 +86,6 @@ impl App {
                 if let Some(path_buf) = files {
                     return Task::perform(
                         async {
-                            //load_images(path_buf)
                             open_folder(path_buf)
                         },
                         Message::OpenedFolder,
@@ -92,6 +95,7 @@ impl App {
             Message::OpenedFolder( (series_names, path_map) ) => {
                 self.file_names = series_names;
                 self.path_map = path_map;
+                self.selected_idx = Some(0);
                 let path_buf = self.path_map.get(&self.file_names[0]).unwrap().clone();
                 return Task::perform(
                     async {
@@ -102,24 +106,66 @@ impl App {
             }
             Message::LoadedImage( slice_buffer ) => {
                 self.slice_buffer = slice_buffer;
-                self.image_handle = Some(self.slice_buffer[0].clone().get_handle());
-                self.image_name = self.slice_buffer[0].file_name.clone();
+                if self.slice_buffer.len() > 0 {
+                    if self.slice_buffer[0].rgba_vec.len() > 0 {
+                        self.image_handle = Some(self.slice_buffer[0].clone().get_handle());
+                        self.show_container = true;
+                    } else {
+                        self.image_handle = None;
+                        self.show_container = false;
+                    }
+                } else {
+                    self.image_handle = None;
+                    self.show_container = false;
+                }
+                let image_path = self.slice_buffer[0].file_name.clone();
+                let image_path = image_path.split("/").last().unwrap();
+                self.image_name = image_path.to_string();
             },
             Message::SliderChanged(current_slice) => {
                 let index = current_slice as usize;
                 self.image_handle = Some(self.slice_buffer[index].clone().get_handle());
-                self.image_name = self.slice_buffer[index].file_name.clone();
                 self.current_slice = current_slice;
+
+                let image_path = self.slice_buffer[index].file_name.clone();
+                let image_path = image_path.split("/").last().unwrap();
+                self.image_name = image_path.to_string();
             }
-            Message::FileSelected(_index, file_name) => {
+            Message::FileSelected(index, file_name) => {
                 let path_buf = self.path_map.get(&file_name).unwrap().clone();
+                self.current_slice = 0;
+                self.selected_idx = Some(index);
                 return Task::perform(
                     async {
                         load_images(path_buf)
                     },
                     Message::LoadedImage,
                 );
-
+            },
+            Message::KeyPressed(key) => {
+                if let Some(selected_idx) = self.selected_idx {
+                    let mut new_idx: Option<usize> = None;
+                    if key == Key::Named(ArrowDown) {
+                        if selected_idx < self.file_names.len()-1 {
+                            new_idx = Some(selected_idx + 1);
+                        }
+                    } else if key == Key::Named(ArrowUp) {
+                        if selected_idx > 0 {
+                            new_idx = Some(selected_idx - 1);
+                        }
+                    }
+                    if let Some(new_idx) = new_idx {
+                        let filename = self.file_names[new_idx].clone();
+                        self.selected_idx = Some(new_idx);
+                        let path_buf = self.path_map.get(&filename).unwrap().clone();
+                        return Task::perform(
+                            async {
+                                load_images(path_buf)
+                            },
+                            Message::LoadedImage,
+                        );
+                    }
+                }
             }
         }
         Task::none()
@@ -154,7 +200,7 @@ fn image_view(state: &App) -> Element<Message> {
             Some(img_handle) => container(row!(
                 column![
                     container(text(&state.image_name)).padding(Padding {top: 0.0 ,right: 0.0 ,bottom: 10.0, left: 0.0 }),
-                    image(img_handle.clone()),
+                    image(img_handle.clone()).content_fit(ContentFit::ScaleDown),
                     vertical_space(),
                     container( slider(1..=(state.slice_buffer.len() as u8 - 1), state.current_slice, Message::SliderChanged) ),
                 ],

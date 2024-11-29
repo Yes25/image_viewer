@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
@@ -68,16 +69,25 @@ pub fn load_images(path_buf: PathBuf) -> Vec<ImageSlice> {
         let file_name = path.to_str().unwrap().to_owned();
         let obj = open_file(path).unwrap();
 
-        let location  = obj.element(Tag(0x0020,0x1041)).unwrap().to_float32().unwrap();
+        let location  = match obj.element( Tag(0x0020,0x1041) ) {
+            Ok(location) => Some(location.to_float32().unwrap()),
+            Err(_e) => None,
+        };
 
-        let decoded_pixel_data = obj.decode_pixel_data().unwrap();
-        let dyn_img = decoded_pixel_data.to_dynamic_image(0).unwrap();
+        let (rgba_vec, width, height) = match obj.decode_pixel_data() {
+            Ok(decoded_pixel_data) => {
+                let dyn_img = decoded_pixel_data.to_dynamic_image(0).unwrap();
 
-        let (width, height) = dyn_img.dimensions();
+                let (width, height) = dyn_img.dimensions();
 
-        let rgba_img = dyn_img.to_rgba8();
-        let rgba_vec = rgba_img.to_vec();
-        
+                let rgba_img = dyn_img.to_rgba8();
+                let rgba_vec = rgba_img.to_vec();
+
+                (rgba_vec, width, height)
+            },
+            Err(_e) => {(Vec::new(),0,0)}
+        };
+
         image_vec.push(ImageSlice {
             file_name,
             width,
@@ -87,17 +97,25 @@ pub fn load_images(path_buf: PathBuf) -> Vec<ImageSlice> {
         });
     };
 
-    image_vec.sort_by(|a, b| b.location.total_cmp(&a.location));
+    image_vec.sort_by(|a, b| {
+        if let Some(a_location)  = a.location {
+            if let Some(b_location) = b.location {
+                return b_location.total_cmp(&a_location);
+            };
+            return Ordering::Equal
+        };
+        return Ordering::Equal
+    });
     image_vec
 }
 
 #[derive(Debug, Clone)]
 pub struct ImageSlice {
     pub file_name: String,
-    width: u32,
-    height: u32,
-    rgba_vec: Vec<u8>,
-    location: f32,
+    pub width: u32,
+    pub height: u32,
+    pub rgba_vec: Vec<u8>,
+    location: Option<f32>,
 }
 
 impl ImageSlice {
