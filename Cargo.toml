@@ -6,9 +6,14 @@ edition = "2021"
 [dependencies]
 iced = { version = "0.13.1", features = ["image", "tokio", "advanced"]}
 iced_aw = { version = "0.11.0", default-features = false, features = ["selection_list"] }
-tokio = { version = "1.41.1", features = ["fs", "io-util"]}
+# tokio = { version = "1.41.1", features = ["fs", "io-util"]}
 dicom = { version = "0.8.0", features = ["image"] }
+# dicom-pixeldata = { version = "0.8", features = ["gdcm"] }
+nifti = "0.16.0"
+ndarray = "0.16.1"
+
 rfd = "0.15.1"
+tar = "0.4.43"
 
 [package.metadata.bundle]
 name = "image viewer"
