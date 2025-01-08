@@ -131,30 +131,34 @@ fn load_nifti_file(path: PathBuf) -> Vec<ImageSlice> {
     let file_name = path.to_str().unwrap().to_owned();
 
     let obj = ReaderOptions::new().read_file(path).unwrap();
-    let volume = obj.volume();
-    // volume.into_ndarray().unwrap().into_raw_vec();
+    let volume = obj.volume().to_owned();
 
-    let axis = get_correct_axis(volume);
-    dbg!(axis);
-    // axis scheint hier komplett egal zu sein...
-    let slice = volume.get_slice(axis, 0).unwrap();
+    nifi_to_rgba(volume)
 
-    let dims = volume.dim();
-    let (biggest_idx, sec_biggest_idx) = get_two_biggest_dims_with_idx(dims);
-    let width = dims[biggest_idx] as u32;
-    let height = dims[sec_biggest_idx] as u32;
+    // let axis = get_correct_axis(volume);
 
-    let rgba_vec = convert_slice_to_rgba(slice);
+    // let dims = volume.dim();
+    // let (biggest_idx, sec_biggest_idx) = get_two_biggest_dims_with_idx(dims);
+    // let width = dims[biggest_idx] as u32;
+    // let height = dims[sec_biggest_idx] as u32;
 
-    let location = Some(0.);
+    // let mut img_vec:Vec<ImageSlice> = vec![];
 
-    vec![ImageSlice {
-        file_name,
-        width,
-        height,
-        rgba_vec,
-        location,
-    }]
+    // for i in 0..20 {
+        // axis scheint hier komplett egal zu sein...
+    //     let slice = volume.get_slice(axis, i).unwrap();
+    //     let rgba_vec = convert_slice_to_rgba(slice);
+    //     let location = Some(i as f32);
+
+    //     img_vec.push(ImageSlice {
+    //        file_name: file_name.clone(),
+    //        width,
+    //        height,
+    //        rgba_vec,
+    //        location,
+    //     });
+    //}
+    // img_vec
 }
 
 fn convert_slice_to_rgba(slice: SliceView<&InMemNiftiVolume>) -> Vec<u8> {
@@ -169,26 +173,56 @@ fn convert_slice_to_rgba(slice: SliceView<&InMemNiftiVolume>) -> Vec<u8> {
     rgba_vec
 }
 
+fn nifi_to_rgba(volume: InMemNiftiVolume) -> Vec<ImageSlice> {
+    let dims = volume.dim();
+    let height = dims[0] as usize;
+    let width = dims[1] as usize;
+    let num_slices = dims[2] as usize;
+
+    let num_slice_pixels = height * width;
+
+    let raw_data = volume.into_raw_data();
+
+    let mut img_vec:Vec<ImageSlice> = vec![];
+
+    for slice_idx in 0..num_slices {
+        let start_idx = slice_idx * num_slice_pixels;
+        let end_idx = start_idx + num_slice_pixels;
+
+        let mut slice = Vec::<u8>::with_capacity((num_slice_pixels * 4) as usize);
+
+        for i in start_idx..end_idx {
+            let pixel_val = raw_data[i as usize];
+            slice.push(pixel_val);
+            slice.push(pixel_val);
+            slice.push(pixel_val);
+            slice.push(255);
+        }
+        img_vec.push(ImageSlice {
+            file_name: "file_name".to_string(),
+            width: width as u32,
+            height: height as u32,
+            rgba_vec : slice,
+            location: Some(slice_idx as f32),
+        });
+    }
+    img_vec
+}
+
+
 fn get_correct_axis(volume: &InMemNiftiVolume) -> u16 {
     let volume_dims = volume.dim();
-    dbg!(volume_dims);
     if volume_dims.len() == 2 {
-        dbg!("Only tow dims");
         2
     } else {
         let (biggest_idx, sec_biggest_idx) = get_two_biggest_dims_with_idx(volume_dims);
-        dbg!(biggest_idx, sec_biggest_idx);
         if (biggest_idx == 0 && sec_biggest_idx == 1) || (biggest_idx == 1 && sec_biggest_idx == 0) {
-            dbg!("first two");
             1
         } else if (biggest_idx == 1 && sec_biggest_idx == 2) || (biggest_idx == 2 && sec_biggest_idx == 1) {
-            dbg!("second two");
             1
         } else if (biggest_idx == 0 && sec_biggest_idx == 2) || (biggest_idx == 2 && sec_biggest_idx == 0) {
-            dbg!("first and last");
             1
         } else {
-            dbg!("!!! should never return !!!");
             2
         }
     }
