@@ -192,7 +192,6 @@ fn scale_pix_val(min: u16, max: u16, pix_val: u16) -> u8{
     (( (pix_val - min) as f32 / max as f32) * 255.) as u8
 }
 
-
 #[derive(Debug, Clone)]
 pub struct ImageSlice {
     pub file_name: String,

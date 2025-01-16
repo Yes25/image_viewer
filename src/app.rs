@@ -1,25 +1,25 @@
 mod file_loader;
 
-use std::collections::HashMap;
 use iced::widget::image::Handle;
-use iced::widget::{button, column, container, image, row, slider, text, vertical_space};
+use iced::widget::{button, column, container, image, row, slider, text};
 use iced::{ContentFit, Element, Font, Length, Padding, Task};
+use std::collections::HashMap;
 
 use rfd::FileDialog;
 use std::env;
 
-use std::path::PathBuf;
-use iced::Fill;
-use iced::keyboard::{Key};
-use iced::keyboard::key::Named::{ArrowDown, ArrowUp};
-use iced_aw::SelectionList;
-use iced_aw::style::selection_list::primary;
 use crate::app::file_loader::{load_image, load_images, open_folder, ImageSlice};
+use iced::keyboard::key::Named::{ArrowDown, ArrowUp};
+use iced::keyboard::Key;
+use iced::Fill;
+use iced_aw::style::selection_list::primary;
+use iced_aw::SelectionList;
+use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
 pub enum Message {
     OpenFolder,
-    OpenedFolder( (Vec<String>, HashMap<String, PathBuf>) ),
+    OpenedFolder((Vec<String>, HashMap<String, PathBuf>)),
     LoadedImage(Vec<ImageSlice>),
     SliderChanged(u8),
     FileSelected(usize, String),
@@ -50,7 +50,16 @@ impl App {
 
             let path = PathBuf::from(path_str);
 
-            image_name = path.file_name().unwrap().to_str().unwrap().to_owned().split("/").last().unwrap().to_string();
+            image_name = path
+                .file_name()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .to_owned()
+                .split("/")
+                .last()
+                .unwrap()
+                .to_string();
 
             image_handle = Some(load_image(path));
             show_container = true;
@@ -82,29 +91,18 @@ impl App {
                     .add_filter("text", &["", ".dcm", ".aim"])
                     .pick_folder();
 
-
                 if let Some(path_buf) = files {
-                    return Task::perform(
-                        async {
-                            open_folder(path_buf)
-                        },
-                        Message::OpenedFolder,
-                    );
+                    return Task::perform(async { open_folder(path_buf) }, Message::OpenedFolder);
                 }
             }
-            Message::OpenedFolder( (series_names, path_map) ) => {
+            Message::OpenedFolder((series_names, path_map)) => {
                 self.file_names = series_names;
                 self.path_map = path_map;
                 self.selected_idx = Some(0);
                 let path_buf = self.path_map.get(&self.file_names[0]).unwrap().clone();
-                return Task::perform(
-                    async {
-                        load_images(path_buf)
-                    },
-                    Message::LoadedImage,
-                );
+                return Task::perform(async { load_images(path_buf) }, Message::LoadedImage);
             }
-            Message::LoadedImage( slice_buffer ) => {
+            Message::LoadedImage(slice_buffer) => {
                 self.slice_buffer = slice_buffer;
                 if self.slice_buffer.len() > 0 {
                     if self.slice_buffer[0].rgba_vec.len() > 0 {
@@ -121,7 +119,7 @@ impl App {
                 let image_path = self.slice_buffer[0].file_name.clone();
                 let image_path = image_path.split("/").last().unwrap();
                 self.image_name = image_path.to_string();
-            },
+            }
             Message::SliderChanged(current_slice) => {
                 let index = current_slice as usize;
                 self.image_handle = Some(self.slice_buffer[index].clone().get_handle());
@@ -135,18 +133,13 @@ impl App {
                 let path_buf = self.path_map.get(&file_name).unwrap().clone();
                 self.current_slice = 0;
                 self.selected_idx = Some(index);
-                return Task::perform(
-                    async {
-                        load_images(path_buf)
-                    },
-                    Message::LoadedImage,
-                );
-            },
+                return Task::perform(async { load_images(path_buf) }, Message::LoadedImage);
+            }
             Message::KeyPressed(key) => {
                 if let Some(selected_idx) = self.selected_idx {
                     let mut new_idx: Option<usize> = None;
                     if key == Key::Named(ArrowDown) {
-                        if selected_idx < self.file_names.len()-1 {
+                        if selected_idx < self.file_names.len() - 1 {
                             new_idx = Some(selected_idx + 1);
                         }
                     } else if key == Key::Named(ArrowUp) {
@@ -159,9 +152,7 @@ impl App {
                         self.selected_idx = Some(new_idx);
                         let path_buf = self.path_map.get(&filename).unwrap().clone();
                         return Task::perform(
-                            async {
-                                load_images(path_buf)
-                            },
+                            async { load_images(path_buf) },
                             Message::LoadedImage,
                         );
                     }
@@ -171,43 +162,58 @@ impl App {
         Task::none()
     }
 
-
     pub fn view(&self) -> Element<Message> {
-        container(
-            row!(
-                column!(
-                    image_view(self)
-                ).padding(5)
+        container(row!(
+            column!(image_view(self))
+                .padding(5)
                 .width(Length::FillPortion(3)),
-                column!(
-                    menu_view(self)
-                )
+            column!(menu_view(self))
                 .padding(5)
                 .width(Length::FillPortion(2)),
-            )
-        )
-            .padding(15)
-            .center_x(Fill)
-            .center_y(Fill)
-            .into()
+        ))
+        .padding(15)
+        .center_x(Fill)
+        .center_y(Fill)
+        .into()
     }
 }
 
 fn image_view(state: &App) -> Element<Message> {
-
     if state.show_container {
         match &state.image_handle {
-            Some(img_handle) => container(row!(
-                column![
-                    container(text(&state.image_name)).padding(Padding {top: 0.0 ,right: 0.0 ,bottom: 10.0, left: 0.0 }),
-                    image(img_handle.clone()).content_fit(ContentFit::ScaleDown),
-                    vertical_space(),
-                    container( slider(1..=(state.slice_buffer.len() as u8 - 1), state.current_slice, Message::SliderChanged) ),
-                ],
-                ).padding(5)
+            Some(img_handle) => container(
+                row!(column![
+                    container(text(&state.image_name)).padding(Padding {
+                        top: 0.0,
+                        right: 0.0,
+                        bottom: 10.0,
+                        left: 0.0
+                    }),
+                    container(
+                        image(img_handle.clone()).content_fit(ContentFit::ScaleDown)
+                    )
+                    .center(Fill)
+                    .width(Fill)
+                    .height(Fill),
+                    container(
+                        row!(
+                            slider(
+                                1..=(state.slice_buffer.len() as u8 - 1),
+                                state.current_slice,
+                                Message::SliderChanged
+                            )
+                            .width(Length::FillPortion(8)),
+                            container(text(format!("{}/{}", state.current_slice, state.slice_buffer.len())))
+                            .align_right(Fill)
+                            .padding(Padding {top: 0.0, right: 0.0, bottom: 10.0, left: 5.0})
+                            .width(Length::FillPortion(2)),
+                        )
+                    ),
+                ],)
+                .padding(5),
             )
-                .width(Fill)
-                .into(),
+            .width(Fill)
+            .into(),
             None => container("Loading...").width(Fill).into(),
         }
     } else {
@@ -225,17 +231,13 @@ fn menu_view(state: &App) -> Element<Message> {
         state.selected_idx,
         Font::default(),
     )
-        .width(Fill)
-        .height(Fill);
+    .width(Fill)
+    .height(Fill);
 
-    container(
-        column![
-            button("Load").on_press(Message::OpenFolder),
-            container(selection_list).padding(15),
-            ]
-    )
-        .height(Fill)
-        .into()
-
+    container(column![
+        button("Load").on_press(Message::OpenFolder),
+        container(selection_list).padding(15),
+    ])
+    .height(Fill)
+    .into()
 }
-
